@@ -1,0 +1,437 @@
+/* Estilos del dashboard TENEBRIOS — extraidos sin cambios visuales del original. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* Tamaño base de fuente — +1 sobre el default del navegador (16→18px). Todos los
+   tamaños rem escalan automaticamente. */
+html { height: 100%; font-size: 18px; }
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1a2630; color: #e8e0d8;
+    display: flex; flex-direction: column;
+    height: 100vh; overflow: hidden;
+}
+
+/* Header compacto */
+.header {
+    background: #344955; padding: 4px 16px; text-align: center;
+    border-bottom: 2px solid #E8B830;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header h1 {
+    font-size: 1.05rem; color: #E8B830; font-weight: 800;
+    letter-spacing: 4px; text-transform: uppercase; margin: 0;
+}
+.header .subtitle {
+    font-size: 0.45rem; color: rgba(255,255,255,0.7);
+    letter-spacing: 3px; text-transform: uppercase;
+}
+.header .conn-line { font-size: 0.55rem; color: rgba(255,255,255,0.6); }
+.header-center {
+    display: flex; flex-direction: column; align-items: center;
+    font-size: 0.65rem; color: #E8B830;
+    font-family: 'Orbitron', sans-serif;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(232,184,48,0.4);
+}
+.header-right { display: flex; align-items: center; gap: 4px; }
+.condor-logo {
+    display: flex; flex-direction: column; align-items: flex-end;
+    line-height: 1;
+}
+.condor-logo .condor-ing {
+    font-size: 0.40rem; color: #8aa0b0; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+}
+.condor-logo .condor-name {
+    font-size: 0.95rem; color: #fff; font-weight: 800;
+    letter-spacing: 3px; text-transform: uppercase;
+}
+.condor-swoosh {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 2px; margin-left: 2px;
+}
+.condor-swoosh span { display: block; height: 3px; border-radius: 2px; }
+.condor-swoosh .sw1 { width: 22px; background: #E8B830; position: relative; }
+.condor-swoosh .sw1::before {
+    content: ''; position: absolute; left: -5px; top: -2px;
+    width: 7px; height: 7px; background: #E8B830; border-radius: 50%;
+}
+.condor-swoosh .sw2 { width: 18px; background: #8aa0b0; }
+.condor-swoosh .sw3 { width: 18px; background: #8aa0b0; }
+.dashboard {
+    display: flex; flex-direction: column;
+    flex: 1; min-height: 0; padding: 4px 8px;
+    overflow: hidden;
+}
+
+/* Layout principal: render 3D + panel lateral */
+.main-row { display: flex; gap: 6px; flex: 1; min-height: 0; }
+.render-column { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#scene-container {
+    flex: 1; background: #243B4A; border-radius: 8px 8px 0 0; padding: 4px;
+    border: 1px solid #3a5a6a; min-width: 0; min-height: 0;
+    touch-action: none;  /* evita que el toque sobre la escena cause scroll del body */
+}
+#scene3d { width: 100%; height: 100%; display: block; }
+#scene3d-canvas { width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+
+/* Panel lateral de indicadores — flex con seccciones que se reparten el alto */
+.side-panel {
+    width: 300px; flex-shrink: 0; display: flex; flex-direction: column;
+    gap: 3px; overflow-y: auto; min-height: 0;
+}
+.indicators-section {
+    padding: 4px 8px; background: #243B4A; border-radius: 8px;
+    border: 1px solid #3a5a6a; flex-shrink: 0;
+}
+.indicators-section h2 {
+    font-size: 0.55rem; color: #E8B830; margin-bottom: 3px;
+    border-bottom: 1px solid #3a5a6a; padding-bottom: 2px;
+}
+
+/* Termometros verticales */
+.thermometers-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.thermometer {
+    display: flex; flex-direction: column; align-items: center;
+    min-width: 40px;
+}
+.thermometer .thermo-label {
+    font-size: 0.55rem; color: #8aa0b0; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 1px;
+}
+.thermometer .thermo-value {
+    font-size: 0.55rem; font-weight: bold; color: #E8B830; margin-bottom: 2px;
+    font-family: 'Orbitron', sans-serif;
+}
+.thermo-bar-wrap { display: flex; align-items: stretch; gap: 3px; }
+.thermo-scale {
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-size: 0.45rem; color: #607888; min-width: 20px; text-align: right;
+    padding: 1px 0;
+}
+.thermo-track {
+    width: 14px; height: 55px; background: #1a2630;
+    border-radius: 8px; position: relative;
+    border: 1px solid #3a5060;
+}
+.thermo-fill {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    border-radius: 0 0 8px 8px; transition: height 0.5s, background 0.5s;
+    z-index: 1;
+}
+.thermo-mark {
+    position: absolute; left: -4px; right: -4px; height: 0;
+    border-top: 2px solid rgba(255,255,255,0.7);
+    z-index: 2; pointer-events: none;
+}
+
+/* Barras horizontales */
+.hbars-row { display: flex; flex-direction: column; gap: 2px; }
+.hbar-item { display: flex; align-items: center; gap: 4px; }
+.hbar-label {
+    font-size: 0.45rem; color: #8aa0b0; text-transform: uppercase;
+    letter-spacing: 1px; min-width: 50px; text-align: right;
+}
+.hbar-track-wrap { flex: 1; display: flex; flex-direction: column; }
+.hbar-track {
+    width: 100%; height: 10px; background: #1a2630;
+    border-radius: 7px; position: relative;
+    border: 1px solid #3a5060;
+}
+.hbar-fill {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    border-radius: 7px 0 0 7px; transition: width 0.5s, background 0.5s;
+    z-index: 1;
+}
+.hbar-mark {
+    position: absolute; top: -3px; bottom: -3px; width: 0;
+    border-left: 2px solid rgba(255,255,255,0.7);
+    z-index: 2; pointer-events: none;
+}
+.hbar-scale {
+    display: flex; justify-content: space-between;
+    font-size: 0.45rem; color: #607888; padding: 1px 2px 0;
+}
+.hbar-value {
+    font-size: 0.55rem; font-weight: bold; color: #E8B830;
+    min-width: 50px;
+    font-family: 'Orbitron', sans-serif;
+}
+
+/* Widgets dispositivos */
+.devices-row { display: flex; gap: 10px; justify-content: center; }
+.device-widget {
+    display: flex; flex-direction: column; align-items: center; min-width: 60px;
+}
+.device-widget .device-label {
+    font-size: 0.45rem; color: #8aa0b0; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 2px;
+}
+.device-widget .device-status {
+    font-size: 0.55rem; font-weight: bold; margin-top: 2px;
+    font-family: 'Orbitron', sans-serif;
+}
+.device-widget .device-status.on { color: #6dbf5a; }
+.device-widget .device-status.off { color: #d44; }
+.fan-icon { width: 30px; height: 30px; position: relative; }
+.fan-blade {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    transition: none;
+}
+.fan-blade.spinning { animation: spin 0.8s linear infinite; }
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-hint {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 0.85; }
+}
+
+/* Small unit styling */
+.thermometer .thermo-value small,
+.hbar-value small,
+.device-widget .device-status small {
+    font-size: 0.75em;
+    opacity: 0.7;
+    margin-left: 2px;
+}
+
+/* Alertas visuales — valores fuera de rango */
+.thermometer.alert .thermo-value,
+.hbar-item.alert .hbar-value {
+    color: #E8B830 !important;
+    border-left: 3px solid #d44 !important;
+    padding-left: 6px;
+}
+
+/* Toggle modos — z-index alto para que NUNCA quede tapado por el canvas
+   ni cubierto por scroll en mobile (siempre overlay sobre la escena). */
+.mode-toggle {
+    position: absolute; top: 8px; left: 8px; z-index: 100;
+    display: flex; flex-wrap: wrap; max-width: calc(100% - 16px);
+    border-radius: 6px; overflow: hidden;
+    border: 1px solid #3a5a6a;
+}
+.mode-toggle button {
+    background: #243B4A; color: #8aa0b0; border: none;
+    padding: 4px 10px; font-size: 0.55rem; cursor: pointer;
+    font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+    transition: background 0.15s, color 0.15s;
+}
+.mode-toggle button.active { background: #E8B830; color: #1a2630; }
+
+/* Panel historial */
+.history-panel {
+    position: absolute; top: 8px; right: 8px; z-index: 10;
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(36,59,74,0.9); border-radius: 6px;
+    border: 1px solid #3a5a6a; padding: 4px 8px;
+}
+.history-panel input[type="date"] {
+    background: #1a2630; color: #E8B830; border: 1px solid #3a5a6a;
+    border-radius: 4px; padding: 2px 4px; font-size: 0.45rem;
+    font-family: inherit;
+}
+.history-panel button {
+    background: #E8B830; color: #1a2630; border: none;
+    border-radius: 4px; padding: 3px 8px; font-size: 0.45rem;
+    cursor: pointer; font-weight: 700; text-transform: uppercase;
+}
+.history-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+.history-panel .hist-label { font-size: 0.45rem; color: #8aa0b0; text-transform: uppercase; }
+
+/* Slider tiempo */
+.time-slider-wrap {
+    display: none; padding: 2px 8px; background: #243B4A;
+    border-radius: 0 0 8px 8px; border: 1px solid #3a5a6a;
+    border-top: none; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.time-slider-wrap.visible { display: flex; }
+.time-slider-wrap input[type="range"] { flex: 1; accent-color: #E8B830; height: 6px; }
+.time-slider-wrap .ts-label {
+    font-size: 0.55rem; color: #E8B830; font-family: monospace;
+    min-width: 130px;
+}
+.time-slider-wrap button {
+    background: #344955; color: #8aa0b0; border: 1px solid #3a5a6a;
+    border-radius: 4px; padding: 2px 8px; font-size: 0.45rem;
+    cursor: pointer; font-weight: 600;
+}
+
+.footer { display: none; }
+
+.connection-dot {
+    display: inline-block; width: 10px; height: 10px;
+    border-radius: 50%; margin-right: 6px; vertical-align: middle;
+}
+.connection-dot.ok { background: #6dbf5a; }
+.connection-dot.err { background: #d44; }
+.connection-dot.warn { background: #E8B830; }
+
+/* Colorbar GUI overlay */
+.colorbar-wrap {
+    position: absolute; top: 50px; right: 12px; z-index: 9;
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(26,38,48,0.4); padding: 4px;
+    border-radius: 4px; pointer-events: none;
+}
+.colorbar-bar {
+    width: 14px; height: 200px; border-radius: 2px;
+    border: 1px solid #3a5a6a;
+}
+.colorbar-scale {
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-size: 0.45rem; color: #8aa0b0; height: 200px;
+}
+
+/* Boton de modo inmersion — visible siempre */
+.btn-expand-render {
+    display: block;
+    position: absolute; bottom: 8px; right: 8px; z-index: 20;
+    background: rgba(36,59,74,0.9); color: #E8B830; border: 1px solid #3a5a6a;
+    border-radius: 4px; padding: 5px 10px; font-size: 0.55rem; cursor: pointer;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+}
+.btn-expand-render:hover { background: rgba(232,184,48,0.2); }
+
+/* Modo INMERSION — canvas fullscreen + overlays (mode-toggle, historial, colorbar, boton salir).
+   Activable via boton o ?immersive=1 en la URL (bookmark del celular). */
+body.immersive { height: 100vh !important; overflow: hidden !important; }
+body.immersive .header,
+body.immersive .footer { display: none !important; }
+
+/* Tablero lateral en inmersion: oculto fuera de pantalla, desliza al hover del mouse */
+body.immersive .side-panel {
+    position: fixed !important;
+    top: 0 !important; right: 0 !important;
+    width: 300px !important; height: 100vh !important;
+    z-index: 210 !important;
+    background: rgba(18, 28, 38, 0.97) !important;
+    border-left: 1px solid #3a5a6a !important;
+    overflow-y: auto !important; overflow-x: hidden !important;
+    padding: 8px 4px !important;
+    gap: 3px !important;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    flex-direction: column !important;
+    display: flex !important;
+}
+body.immersive .side-panel.panel-visible {
+    transform: translateX(0) !important;
+    pointer-events: auto !important;
+}
+
+/* Franja de activacion: borde dorado sutil en el extremo derecho */
+.panel-edge-hint { display: none; }
+body.immersive .panel-edge-hint {
+    display: block;
+    position: fixed; top: 0; right: 0; width: 8px; height: 100vh;
+    background: linear-gradient(to left, rgba(232,184,48,0.55), transparent);
+    z-index: 209; pointer-events: none;
+    transition: opacity 0.25s;
+    animation: pulse-hint 2s ease-in-out 5;
+}
+body.immersive.panel-open .panel-edge-hint { opacity: 0; }
+body.immersive .time-slider-wrap { display: none !important; }
+/* El time-slider se muestra como barra fija al pie cuando el historial esta activo */
+body.immersive .time-slider-wrap.visible {
+    display: flex !important;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+    border-radius: 0; border-left: none; border-right: none; border-bottom: none;
+    background: rgba(36,59,74,0.97);
+}
+body.immersive .dashboard { padding: 0 !important; height: 100vh !important; flex: 1 1 auto !important; }
+body.immersive .main-row { gap: 0 !important; }
+body.immersive .render-column { width: 100% !important; height: 100vh !important; flex: 1 1 auto !important; }
+body.immersive #scene-container {
+    border-radius: 0 !important; border: none !important; padding: 0 !important;
+    height: 100vh !important; width: 100vw !important;
+}
+
+/* ---- Responsive: movil vertical (<768px) ---- */
+@media (max-width: 768px) {
+    .header { flex-wrap: wrap; justify-content: center; gap: 4px; padding: 6px 8px; }
+    .header-left { gap: 6px; }
+    .header h1 { font-size: 0.80rem; letter-spacing: 2px; }
+    .header .subtitle { font-size: 0.40rem; letter-spacing: 2px; }
+    .header-center { font-size: 0.55rem; letter-spacing: 1px; }
+    .header-right { display: none; }
+
+    body { overflow-y: auto !important; height: auto !important; min-height: 100vh; }
+    .dashboard { flex: none !important; height: auto !important; overflow: visible !important; padding: 4px; }
+    .main-row { flex-direction: column !important; flex: none !important; gap: 4px; }
+    .render-column {
+        height: 45vh !important; min-height: 280px !important; max-height: 420px !important;
+        flex: none !important; overflow: hidden !important;
+    }
+    #scene-container {
+        border-radius: 8px; position: relative !important; flex: 1;
+        overflow: hidden !important; max-height: 100% !important;
+    }
+    #scene3d { max-height: 330px !important; }
+    .side-panel { width: 100% !important; overflow: visible !important; gap: 6px; flex-shrink: 0; }
+    .indicators-section { padding: 8px 10px; border-top: 1px solid rgba(58,90,106,0.4); }
+    .indicators-section:first-child { border-top: none; }
+
+    /* mode-toggle y history-panel son overlays absolutos — no van al flujo del documento
+       para que el scroll del body no los oculte al tocar el canvas. */
+
+    /* mode-toggle: ocupa ancho completo en la parte superior */
+    .mode-toggle { max-width: calc(100% - 16px); }
+    .mode-toggle button { padding: 3px 7px; font-size: 0.45rem; }
+
+    /* history-panel: se desplaza al fondo del canvas, sobre el boton INMERSION */
+    .history-panel {
+        top: auto !important;
+        bottom: 44px;
+        left: 8px;
+        right: 8px;
+        max-width: none;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    /* colorbar: mas compacta en movil */
+    .colorbar-bar { height: 130px; }
+    .colorbar-scale { height: 130px; }
+
+    .time-slider-wrap { border-radius: 0 0 8px 8px; }
+
+    body.immersive .btn-expand-render { bottom: 12px; right: 12px; }
+
+    .thermometers-row { gap: 14px; justify-content: space-around; }
+    .thermo-track { height: 65px; width: 16px; }
+    .thermometer .thermo-value { font-size: 0.65rem; }
+
+    .hbar-track { height: 18px; }
+    .hbar-label { min-width: 55px; font-size: 0.55rem; }
+    .hbar-value { font-size: 0.65rem; }
+    .hbar-scale { font-size: 0.45rem; }
+
+    .devices-row { gap: 30px; }
+    .fan-icon { width: 40px; height: 40px; }
+    .device-widget .device-label { font-size: 0.55rem; }
+    .device-widget .device-status { font-size: 0.65rem; }
+}
+
+/* ---- Responsive: movil horizontal / tablet ---- */
+@media (max-width: 900px) and (orientation: landscape) {
+    body { overflow: auto !important; height: auto !important; min-height: 100vh; }
+    .dashboard { flex: none !important; height: auto !important; overflow: visible !important; min-height: calc(100vh - 34px); }
+    .main-row { flex-direction: column !important; flex: none !important; }
+    .render-column { height: 55vh !important; min-height: 250px !important; flex: none !important; }
+    .side-panel { width: 100% !important; overflow: visible !important; }
+    .header-right { display: none !important; }
+    .header-center { font-size: 0.45rem !important; }
+    /* history-panel al fondo igual que en portrait */
+    .history-panel { top: auto !important; bottom: 44px; left: 8px; right: 8px; max-width: none; justify-content: center; flex-wrap: wrap; }
+    .mode-toggle button { padding: 3px 7px; font-size: 0.45rem; }
+}
+
+
+

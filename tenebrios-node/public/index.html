@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Temperature Heatmap 3D</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <!-- Babylon.js core + GUI desde CDN (no requiere bundler) -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <div>
+                <h1>TECHNEBR<span style="opacity:0.5">|</span>OS</h1>
+                <div class="subtitle">SUPER ALIMENTATE</div>
+            </div>
+            <div class="conn-line"><span id="conn-dot" class="connection-dot err"></span><span id="conn-status">Connecting...</span></div>
+        </div>
+        <div class="header-center">
+            <span id="mqtt-timestamp">--</span>
+        </div>
+        <div class="header-right">
+            <div class="condor-logo">
+                <span class="condor-ing">Ingenieria</span>
+                <span class="condor-name">CONDOR</span>
+            </div>
+            <div class="condor-swoosh">
+                <span class="sw1"></span>
+                <span class="sw2"></span>
+                <span class="sw3"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="main-row">
+            <div class="render-column">
+                <div id="scene-container" style="position:relative;">
+                    <div class="mode-toggle">
+                        <button id="btn-full-temp" class="active" data-mode="full-temp">🌡 Completo Temp</button>
+                        <button id="btn-full-hum" data-mode="full-hum">💧 Completo Hum</button>
+                        <button id="btn-temp" data-mode="temp">🌡 Temperatura</button>
+                        <button id="btn-hum" data-mode="humidity">💧 Humedad</button>
+                        <button id="btn-floor" data-mode="floor">Solo Piso</button>
+                    </div>
+                    <div class="history-panel">
+                        <span class="hist-label">Historial:</span>
+                        <input type="date" id="hist-start">
+                        <input type="date" id="hist-end">
+                        <button id="btn-load-hist">Cargar</button>
+                    </div>
+                    <div id="scene3d"><canvas id="scene3d-canvas"></canvas></div>
+                    <div class="colorbar-wrap" id="colorbar-wrap">
+                        <div class="colorbar-scale" id="colorbar-scale">
+                            <span>--</span><span>--</span><span>--</span>
+                        </div>
+                        <div class="colorbar-bar" id="colorbar-bar"></div>
+                    </div>
+                    <button class="btn-expand-render" id="btn-expand">⛶ INMERSIÓN</button>
+                </div>
+                <div class="time-slider-wrap" id="time-slider-wrap">
+                    <span class="ts-label" id="ts-label">--</span>
+                    <input type="range" id="time-slider" min="0" max="0" value="0">
+                    <button id="btn-exit-history">En vivo</button>
+                </div>
+            </div>
+
+            <div class="side-panel">
+                <div class="indicators-section">
+                    <h2>Temperatura</h2>
+                    <div class="thermometers-row" id="temp-thermometers">
+                        <div class="thermometer"><div class="thermo-label">T1</div><div class="thermo-value" id="thermo-val-t1">--</div><div class="thermo-bar-wrap"><div class="thermo-scale"><span>35&deg;</span><span>25&deg;</span><span>14&deg;</span></div><div class="thermo-track"><div class="thermo-mark" style="bottom:42.9%"></div><div class="thermo-mark" style="bottom:66.7%"></div><div class="thermo-fill" id="thermo-fill-t1"></div></div></div></div>
+                        <div class="thermometer"><div class="thermo-label">T2</div><div class="thermo-value" id="thermo-val-t2">--</div><div class="thermo-bar-wrap"><div class="thermo-scale"><span>35&deg;</span><span>25&deg;</span><span>14&deg;</span></div><div class="thermo-track"><div class="thermo-mark" style="bottom:42.9%"></div><div class="thermo-mark" style="bottom:66.7%"></div><div class="thermo-fill" id="thermo-fill-t2"></div></div></div></div>
+                        <div class="thermometer"><div class="thermo-label">T3</div><div class="thermo-value" id="thermo-val-t3">--</div><div class="thermo-bar-wrap"><div class="thermo-scale"><span>35&deg;</span><span>25&deg;</span><span>14&deg;</span></div><div class="thermo-track"><div class="thermo-mark" style="bottom:42.9%"></div><div class="thermo-mark" style="bottom:66.7%"></div><div class="thermo-fill" id="thermo-fill-t3"></div></div></div></div>
+                        <div class="thermometer"><div class="thermo-label">T4</div><div class="thermo-value" id="thermo-val-t4">--</div><div class="thermo-bar-wrap"><div class="thermo-scale"><span>35&deg;</span><span>25&deg;</span><span>14&deg;</span></div><div class="thermo-track"><div class="thermo-mark" style="bottom:42.9%"></div><div class="thermo-mark" style="bottom:66.7%"></div><div class="thermo-fill" id="thermo-fill-t4"></div></div></div></div>
+                        <div class="thermometer"><div class="thermo-label">T5</div><div class="thermo-value" id="thermo-val-t5">--</div><div class="thermo-bar-wrap"><div class="thermo-scale"><span>35&deg;</span><span>25&deg;</span><span>14&deg;</span></div><div class="thermo-track"><div class="thermo-mark" style="bottom:42.9%"></div><div class="thermo-mark" style="bottom:66.7%"></div><div class="thermo-fill" id="thermo-fill-t5"></div></div></div></div>
+                    </div>
+                </div>
+
+                <div class="indicators-section">
+                    <h2>Temperaturas promedio</h2>
+                    <div class="hbars-row">
+                        <div class="hbar-item"><div class="hbar-label">Exterior</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:42.9%"></div><div class="hbar-mark" style="left:66.7%"></div><div class="hbar-fill" id="hbar-fill-tex"></div></div><div class="hbar-scale"><span>14&deg;</span><span>23&deg;</span><span>25&deg;</span><span>28&deg;</span><span>35&deg;</span></div></div><div class="hbar-value" id="hbar-val-tex">--</div></div>
+                        <div class="hbar-item"><div class="hbar-label">Superior</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:42.9%"></div><div class="hbar-mark" style="left:66.7%"></div><div class="hbar-fill" id="hbar-fill-tps"></div></div><div class="hbar-scale"><span>14&deg;</span><span>23&deg;</span><span>25&deg;</span><span>28&deg;</span><span>35&deg;</span></div></div><div class="hbar-value" id="hbar-val-tps">--</div></div>
+                        <div class="hbar-item"><div class="hbar-label">Inferior</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:42.9%"></div><div class="hbar-mark" style="left:66.7%"></div><div class="hbar-fill" id="hbar-fill-tpi"></div></div><div class="hbar-scale"><span>14&deg;</span><span>23&deg;</span><span>25&deg;</span><span>28&deg;</span><span>35&deg;</span></div></div><div class="hbar-value" id="hbar-val-tpi">--</div></div>
+                    </div>
+                </div>
+
+                <div class="indicators-section">
+                    <h2>Humedad</h2>
+                    <div class="hbars-row" id="humidity-bars">
+                        <div class="hbar-item"><div class="hbar-label">H1</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:60%"></div><div class="hbar-mark" style="left:88%"></div><div class="hbar-fill" id="hbar-fill-h1"></div></div><div class="hbar-scale"><span>0</span><span>40</span><span>60</span><span>70</span><span>90</span><span>100%</span></div></div><div class="hbar-value" id="hbar-val-h1">--%</div></div>
+                        <div class="hbar-item"><div class="hbar-label">H2</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:60%"></div><div class="hbar-mark" style="left:88%"></div><div class="hbar-fill" id="hbar-fill-h2"></div></div><div class="hbar-scale"><span>0</span><span>40</span><span>60</span><span>70</span><span>90</span><span>100%</span></div></div><div class="hbar-value" id="hbar-val-h2">--%</div></div>
+                        <div class="hbar-item"><div class="hbar-label">H3</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:60%"></div><div class="hbar-mark" style="left:88%"></div><div class="hbar-fill" id="hbar-fill-h3"></div></div><div class="hbar-scale"><span>0</span><span>40</span><span>60</span><span>70</span><span>90</span><span>100%</span></div></div><div class="hbar-value" id="hbar-val-h3">--%</div></div>
+                        <div class="hbar-item"><div class="hbar-label">H4</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:60%"></div><div class="hbar-mark" style="left:88%"></div><div class="hbar-fill" id="hbar-fill-h4"></div></div><div class="hbar-scale"><span>0</span><span>40</span><span>60</span><span>70</span><span>90</span><span>100%</span></div></div><div class="hbar-value" id="hbar-val-h4">--%</div></div>
+                        <div class="hbar-item"><div class="hbar-label">H5</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:60%"></div><div class="hbar-mark" style="left:88%"></div><div class="hbar-fill" id="hbar-fill-h5"></div></div><div class="hbar-scale"><span>0</span><span>40</span><span>60</span><span>70</span><span>90</span><span>100%</span></div></div><div class="hbar-value" id="hbar-val-h5">--%</div></div>
+                        <div class="hbar-item"><div class="hbar-label">General</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:60%"></div><div class="hbar-mark" style="left:88%"></div><div class="hbar-fill" id="hbar-fill-hum_general"></div></div><div class="hbar-scale"><span>0</span><span>40</span><span>60</span><span>70</span><span>90</span><span>100%</span></div></div><div class="hbar-value" id="hbar-val-hum_general">--%</div></div>
+                    </div>
+                </div>
+
+                <div class="indicators-section">
+                    <h2>Amoniaco (PPM)</h2>
+                    <div class="hbars-row" id="ammonia-bar">
+                        <div class="hbar-item"><div class="hbar-label">NH&#8323;</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-fill" id="hbar-fill-ammonia"></div></div><div class="hbar-scale"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5 ppm</span></div></div><div class="hbar-value" id="hbar-val-ammonia">-- ppm</div></div>
+                    </div>
+                </div>
+
+                <div class="indicators-section">
+                    <h2>Piso Radiante</h2>
+                    <div class="hbars-row">
+                        <div class="hbar-item"><div class="hbar-label">Salida</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:42.9%"></div><div class="hbar-mark" style="left:66.7%"></div><div class="hbar-fill" id="hbar-fill-rf-t1"></div></div><div class="hbar-scale"><span>14&deg;</span><span>25&deg;</span><span>35&deg;</span></div></div><div class="hbar-value" id="hbar-val-rf-t1">--</div></div>
+                        <div class="hbar-item"><div class="hbar-label">Medio Piso</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-mark" style="left:42.9%"></div><div class="hbar-mark" style="left:66.7%"></div><div class="hbar-fill" id="hbar-fill-rf-t3"></div></div><div class="hbar-scale"><span>14&deg;</span><span>25&deg;</span><span>35&deg;</span></div></div><div class="hbar-value" id="hbar-val-rf-t3">--</div></div>
+                    </div>
+                </div>
+
+                <div class="indicators-section">
+                    <h2>Sala de Maquinas</h2>
+                    <div class="hbars-row">
+                        <div class="hbar-item"><div class="hbar-label">Calentador</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-fill" id="hbar-fill-mr-t2"></div></div><div class="hbar-scale"><span>30&deg;</span><span>45&deg;</span><span>60&deg;</span><span>75&deg;</span><span>90&deg;</span></div></div><div class="hbar-value" id="hbar-val-mr-t2">--</div></div>
+                        <div class="hbar-item"><div class="hbar-label">Entrada</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-fill" id="hbar-fill-mr-t4"></div></div><div class="hbar-scale"><span>14&deg;</span><span>25&deg;</span><span>35&deg;</span></div></div><div class="hbar-value" id="hbar-val-mr-t4">--</div></div>
+                        <div class="hbar-item"><div class="hbar-label">Termo</div><div class="hbar-track-wrap"><div class="hbar-track"><div class="hbar-fill" id="hbar-fill-mr-t5"></div></div><div class="hbar-scale"><span>15&deg;</span><span>30&deg;</span><span>50&deg;</span><span>70&deg;</span><span>90&deg;</span></div></div><div class="hbar-value" id="hbar-val-mr-t5">--</div></div>
+                    </div>
+                </div>
+
+                <div class="indicators-section">
+                    <h2>Dispositivos</h2>
+                    <div class="devices-row">
+                        <div class="device-widget">
+                            <div class="device-label">Ventilador</div>
+                            <div class="fan-icon">
+                                <svg class="fan-blade" id="fan-blade" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="3" fill="#8aa0b0"/>
+                                    <path d="M18 15 Q22 6 18 1 Q14 6 18 15Z" fill="#8aa0b0"/>
+                                    <path d="M21 18 Q30 14 35 18 Q30 22 21 18Z" fill="#8aa0b0"/>
+                                    <path d="M18 21 Q14 30 18 35 Q22 30 18 21Z" fill="#8aa0b0"/>
+                                    <path d="M15 18 Q6 22 1 18 Q6 14 15 18Z" fill="#8aa0b0"/>
+                                </svg>
+                            </div>
+                            <div class="device-status off" id="fan-status">OFF</div>
+                        </div>
+                        <div class="device-widget">
+                            <div class="device-label">Extractor</div>
+                            <div class="fan-icon">
+                                <svg class="fan-blade" id="ext-blade" viewBox="0 0 36 36">
+                                    <circle cx="18" cy="18" r="3" fill="#8aa0b0"/>
+                                    <path d="M18 15 Q22 6 18 1 Q14 6 18 15Z" fill="#8aa0b0"/>
+                                    <path d="M21 18 Q30 14 35 18 Q30 22 21 18Z" fill="#8aa0b0"/>
+                                    <path d="M18 21 Q14 30 18 35 Q22 30 18 21Z" fill="#8aa0b0"/>
+                                    <path d="M15 18 Q6 22 1 18 Q6 14 15 18Z" fill="#8aa0b0"/>
+                                </svg>
+                            </div>
+                            <div class="device-status off" id="ext-status">OFF</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">TENEBRIOS &mdash; Real-time IoT 3D Volumetric Temperature Monitor</div>
+
+    <!-- Franja dorada: indica que el tablero se abre al acercar el mouse al borde derecho -->
+    <div class="panel-edge-hint" title="Tablero →"></div>
+
+    <!-- Logica del cliente (modulos ES) -->
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>

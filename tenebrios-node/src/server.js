@@ -1,0 +1,308 @@
+// Servidor web Express para visualizacion de mapa de calor volumetrico 3D.
+// Sirve la pagina HTML con un render Babylon.js que se actualiza consultando
+// el endpoint JSON. Replica de backend/visualization.py.
+
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+
+// Timestamp generado al arrancar el servidor; se inyecta como query string en
+// los recursos HTML para forzar al navegador a refrescar su cache.
+const BUILD_VERSION = Date.now().toString(36);
+
+import {
+  ANIMATION_INTERVAL_MS,
+  ROOM_X_MIN,
+  ROOM_X_MAX,
+  ROOM_Y_MIN,
+  ROOM_Y_MAX,
+  ROOM_Z_MIN,
+  ROOM_Z_MAX,
+  HEATMAP_VMIN,
+  HEATMAP_VMAX,
+  SENSOR_POSITIONS,
+  TEX_POSITION,
+  HUMIDITY_LABELS,
+  RADIANT_FLOOR_LABELS,
+  MACHINE_ROOM_LABELS,
+  EXTERIOR_TEMP_LABEL,
+  FAN_LABEL,
+  EXTRACTOR_LABEL,
+  AVG_TEMP_SUPERIOR_LABEL,
+  AVG_TEMP_INFERIOR_LABEL,
+  AMMONIA_LABEL,
+} from './config.js';
+import { getLogger } from './logger.js';
+import { fetchUbidotsValues } from './ubidotsApi.js';
+import { interpolateGrid, clipInPlace } from './interpolation.js';
+
+const logger = getLogger('server');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
+
+let _engine = null;
+let _mqttStatusFn = () => false;
+
+export function setEngine(engine) {
+  _engine = engine;
+}
+
+export function setMqttStatus(fn) {
+  _mqttStatusFn = fn;
+}
+
+/**
+ * Redondea a N decimales o devuelve null si el valor no esta definido.
+ */
+function r(value, decimals = 1) {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  const f = Math.pow(10, decimals);
+  return Math.round(value * f) / f;
+}
+
+export function createApp() {
+  const app = express();
+
+  // Estaticos del frontend — sin cache para que los cambios en JS/CSS/HTML
+  // se reflejen siempre al recargar (el dashboard pollea cada 2s, no necesita cache).
+  app.use(express.static(PUBLIC_DIR, {
+    etag: false,
+    lastModified: false,
+    index: false, // desactivar auto-servido de index.html — lo maneja app.get('/')
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+    },
+  }));
+
+  // Endpoint que el cliente lee al inicio para conocer el intervalo de refresco
+  app.get('/api/config', (req, res) => {
+    res.json({ refresh_ms: ANIMATION_INTERVAL_MS });
+  });
+
+  app.get('/', (req, res) => {
+    // Inyectar BUILD_VERSION en los src de scripts/css para invalidar cache
+    // del navegador cada vez que se reinicia el servidor.
+    let html = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf-8');
+    html = html.replace(/(src|href)="\/(js|css)\/([^"]+)"/g,
+      (_, attr, dir, file) => `${attr}="/${dir}/${file}?v=${BUILD_VERSION}"`);
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.set('Cache-Control', 'no-store');
+    res.send(html);
+  });
+
+  // --- /api/data ---------------------------------------------------------
+  app.get('/api/data', (req, res) => {
+    if (_engine === null) {
+      return res.status(503).json({ error: 'Engine not initialized' });
+    }
+
+    const volume = _engine.interpolateVolume();
+    const humidityVolume = _engine.interpolateHumidityVolume();
+
+    const sensorValues = {};
+    for (const label of Object.keys(SENSOR_POSITIONS)) {
+      const v = _engine.getSensorValue(label);
+      if (v !== null) sensorValues[label] = r(v, 1);
+    }
+
+    const extTemp = _engine.getExteriorTemp();
+    const texSensor = {
+      x: TEX_POSITION[0],
+      y: TEX_POSITION[1],
+      z: TEX_POSITION[2],
+      value: r(extTemp, 1),
+    };
+
+    const sensorsBlock = {};
+    for (const [label, pos] of Object.entries(SENSOR_POSITIONS)) {
+      sensorsBlock[label] = {
+        x: pos[0], y: pos[1], z: pos[2],
+        value: sensorValues[label] ?? null,
+      };
+    }
+
+    const humidityBlock = {};
+    for (const label of HUMIDITY_LABELS) {
+      humidityBlock[label] = r(_engine.getHumidity(label), 1);
+    }
+
+    const radiantBlock = {};
+    for (const [label, desc] of Object.entries(RADIANT_FLOOR_LABELS)) {
+      radiantBlock[label] = {
+        value: r(_engine.getRadiantFloor(label), 1),
+        name: desc,
+      };
+    }
+
+    const machineBlock = {};
+    for (const [label, desc] of Object.entries(MACHINE_ROOM_LABELS)) {
+      machineBlock[label] = {
+        value: r(_engine.getMachineRoom(label), 1),
+        name: desc,
+      };
+    }
+
+    res.json({
+      volume_data: volume,
+      humidity_volume_data: humidityVolume,
+      x_range: [ROOM_X_MIN, ROOM_X_MAX],
+      y_range: [ROOM_Y_MIN, ROOM_Y_MAX],
+      z_range: [ROOM_Z_MIN, ROOM_Z_MAX],
+      vmin: HEATMAP_VMIN,
+      vmax: HEATMAP_VMAX,
+      exterior_temp: extTemp,
+      avg_temp_superior: r(_engine.getAvgTempSuperior(), 1),
+      avg_temp_inferior: r(_engine.getAvgTempInferior(), 1),
+      fan_on: _engine.getFanState(),
+      extractor_on: _engine.getExtractorState(),
+      mqtt_connected: _mqttStatusFn(),
+      sensors: sensorsBlock,
+      tex_sensor: texSensor,
+      humidity: humidityBlock,
+      amoniaco: r(_engine.getAmmoniaPpm(), 2),
+      radiant_floor: radiantBlock,
+      machine_room: machineBlock,
+      last_update: _engine.getLastUpdate(),
+    });
+  });
+
+  // --- /api/history ------------------------------------------------------
+  app.get('/api/history', async (req, res) => {
+    const startDate = req.query.start;
+    const endDate = req.query.end;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Parametros start y end requeridos (YYYY-MM-DD)' });
+    }
+
+    const startDt = new Date(`${startDate}T00:00:00`);
+    const endDt = new Date(`${endDate}T00:00:00`);
+    if (Number.isNaN(startDt.getTime()) || Number.isNaN(endDt.getTime())) {
+      return res.status(400).json({ error: 'Formato de fecha invalido, usar YYYY-MM-DD' });
+    }
+
+    const diffDays = Math.floor((endDt.getTime() - startDt.getTime()) / 86400000);
+    if (diffDays > 31) {
+      return res.status(400).json({ error: 'Rango maximo permitido: 31 dias' });
+    }
+    if (diffDays < 0) {
+      return res.status(400).json({ error: 'Fecha de inicio debe ser anterior a fecha de fin' });
+    }
+
+    const startMs = startDt.getTime();
+    const endMs = endDt.getTime() + 86400000;
+
+    const tempVars = Object.keys(SENSOR_POSITIONS);
+    const extraTempVars = [EXTERIOR_TEMP_LABEL, AVG_TEMP_SUPERIOR_LABEL, AVG_TEMP_INFERIOR_LABEL];
+    const humVars = HUMIDITY_LABELS;
+    const radiantVars = Object.keys(RADIANT_FLOOR_LABELS);
+    const machineVars = Object.keys(MACHINE_ROOM_LABELS);
+    const otherVars = [AMMONIA_LABEL, FAN_LABEL, EXTRACTOR_LABEL];
+
+    const result = {
+      timestamps: [],
+      temperature: {},
+      humidity: {},
+      radiant_floor: {},
+      machine_room: {},
+      other: {},
+    };
+
+    const allTimestamps = new Set();
+
+    async function fillCategory(vars, key) {
+      for (const v of vars) {
+        const values = await fetchUbidotsValues(v, startMs, endMs);
+        result[key][v] = values.map((row) => ({
+          timestamp: row.timestamp,
+          value: row.value,
+        }));
+        for (const row of values) allTimestamps.add(row.timestamp);
+      }
+    }
+
+    await fillCategory(tempVars, 'temperature');
+    await fillCategory(extraTempVars, 'temperature');
+    await fillCategory(humVars, 'humidity');
+    await fillCategory(radiantVars, 'radiant_floor');
+    await fillCategory(machineVars, 'machine_room');
+    await fillCategory(otherVars, 'other');
+
+    result.timestamps = Array.from(allTimestamps).sort((a, b) => a - b);
+
+    res.json(result);
+  });
+
+  // --- /api/history/interpolate -----------------------------------------
+  app.get('/api/history/interpolate', (req, res) => {
+    if (_engine === null) {
+      return res.status(503).json({ error: 'Engine not initialized' });
+    }
+
+    const tempData = req.query.temps;
+    const humData = req.query.hums;
+    if (!tempData) {
+      return res.status(400).json({ error: 'Parametro temps requerido' });
+    }
+
+    let temps, hums;
+    try {
+      temps = JSON.parse(tempData);
+      hums = humData ? JSON.parse(humData) : {};
+    } catch {
+      return res.status(400).json({ error: 'JSON invalido' });
+    }
+
+    const sensorLabels = _engine.sensorLabels;
+    const sensorCoords = _engine.sensorCoords;
+    const gridX = _engine.gridX;
+    const gridY = _engine.gridY;
+    const gridZ = _engine.gridZ;
+
+    function buildVolume(valueMap, indexMap, vmin, vmax) {
+      const coords = [];
+      const values = [];
+      for (const [label, idx] of indexMap) {
+        if (label in valueMap && valueMap[label] !== null && valueMap[label] !== undefined) {
+          values.push(valueMap[label]);
+          coords.push(sensorCoords[idx]);
+        }
+      }
+      if (values.length < 3) return null;
+      const vol = interpolateGrid(coords, values, gridX, gridY, gridZ);
+      clipInPlace(vol, vmin, vmax);
+      return {
+        x: Array.from(gridX),
+        y: Array.from(gridY),
+        z: Array.from(gridZ),
+        value: Array.from(vol),
+      };
+    }
+
+    const tempIndexMap = sensorLabels.map((l, i) => [l, i]);
+    const humIndexMap = [['h1', 0], ['h2', 1], ['h3', 2], ['h4', 3], ['h5', 4]];
+
+    const tempVol = buildVolume(temps, tempIndexMap, HEATMAP_VMIN, HEATMAP_VMAX);
+    const humVol = buildVolume(hums, humIndexMap, 0, 100);
+
+    res.json({
+      volume_data: tempVol,
+      humidity_volume_data: humVol,
+    });
+  });
+
+  return app;
+}
+
+export function start(app, host, port) {
+  return new Promise((resolve) => {
+    const server = app.listen(port, host, () => {
+      logger.info(`Starting web server on http://${host}:${port}`);
+      resolve(server);
+    });
+  });
+}
